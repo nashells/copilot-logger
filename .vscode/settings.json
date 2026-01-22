@@ -2,6 +2,27 @@
     "chat.tools.terminal.autoApprove": {
         "git add": true,
         "git commit": true,
-        "git push": true
+        "git push": true,
+        "npm install": true,
+        "/^cat \"/mnt/c/Users/sato/AppData/Roaming/Code/User/workspaceStorage/7a96ddb7f4338cb5339111fb461b4316/chatSessions/ea85381f-8197-4421-b8d5-03143db5ad7c\\.json\" 2>/dev/null \\| python3 -c \"\nimport json, sys\ndata = json\\.load\\(sys\\.stdin\\)\nif 'requests' in data and len\\(data\\['requests'\\]\\) > 0:\n    req = data\\['requests'\\]\\[0\\]\n    print\\('=== REQUEST STRUCTURE ==='\\)\n    print\\('message\\.text:', req\\.get\\('message', \\{\\}\\)\\.get\\('text', 'N/A'\\)\\[:100\\]\\)\n    print\\(\\)\n    print\\('=== RESPONSE TYPES ==='\\)\n    for i, r in enumerate\\(req\\.get\\('response', \\[\\]\\)\\[:10\\]\\):\n        print\\(f'\\{i\\}: kind=\\{r\\.get\\(\\\\\"kind\\\\\"\\)\\}'\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cat \"/mnt/c/Users/sato/AppData/Roaming/Code/User/workspaceStorage/7a96ddb7f4338cb5339111fb461b4316/chatSessions/ea85381f-8197-4421-b8d5-03143db5ad7c\\.json\" 2>/dev/null \\| python3 -c \"\nimport json, sys\ndata = json\\.load\\(sys\\.stdin\\)\nif 'requests' in data and len\\(data\\['requests'\\]\\) > 0:\n    req = data\\['requests'\\]\\[0\\]\n    for r in req\\.get\\('response', \\[\\]\\):\n        if r\\.get\\('kind'\\) == 'markdownContent':\n            print\\('=== MARKDOWN CONTENT FOUND ==='\\)\n            content = r\\.get\\('content', \\{\\}\\)\n            print\\('value:', str\\(content\\.get\\('value', 'N/A'\\)\\)\\[:500\\]\\)\n            break\n        elif r\\.get\\('kind'\\) == 'textEdit':\n            print\\('=== TEXT EDIT ==='\\)\n            print\\(r\\.keys\\(\\)\\)\n\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cat \"/mnt/c/Users/sato/AppData/Roaming/Code/User/workspaceStorage/7a96ddb7f4338cb5339111fb461b4316/chatSessions/ea85381f-8197-4421-b8d5-03143db5ad7c\\.json\" 2>/dev/null \\| python3 -c \"\nimport json, sys\ndata = json\\.load\\(sys\\.stdin\\)\nif 'requests' in data and len\\(data\\['requests'\\]\\) > 0:\n    req = data\\['requests'\\]\\[0\\]\n    kinds = set\\(\\)\n    for r in req\\.get\\('response', \\[\\]\\):\n        kinds\\.add\\(r\\.get\\('kind'\\)\\)\n    print\\('All kinds:', sorted\\(kinds\\)\\)\n\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cat \"/mnt/c/Users/sato/AppData/Roaming/Code/User/workspaceStorage/7a96ddb7f4338cb5339111fb461b4316/chatSessions/ea85381f-8197-4421-b8d5-03143db5ad7c\\.json\" 2>/dev/null \\| python3 -c \"\nimport json, sys\ndata = json\\.load\\(sys\\.stdin\\)\nif 'requests' in data and len\\(data\\['requests'\\]\\) > 0:\n    req = data\\['requests'\\]\\[0\\]\n    kinds = set\\(\\)\n    for r in req\\.get\\('response', \\[\\]\\):\n        kinds\\.add\\(str\\(r\\.get\\('kind'\\)\\)\\)\n    print\\('All kinds:', sorted\\(kinds\\)\\)\n\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cat \"/mnt/c/Users/sato/AppData/Roaming/Code/User/workspaceStorage/9160613e52b371795f51d895211ac2ed/chatSessions/1441509b-326b-483b-a60a-c8021c8e33bb\\.json\" 2>/dev/null \\| python3 -c \"\nimport json, sys\ndata = json\\.load\\(sys\\.stdin\\)\nif 'requests' in data and len\\(data\\['requests'\\]\\) > 0:\n    req = data\\['requests'\\]\\[0\\]\n    kinds = set\\(\\)\n    for r in req\\.get\\('response', \\[\\]\\):\n        kinds\\.add\\(str\\(r\\.get\\('kind'\\)\\)\\)\n    print\\('All kinds:', sorted\\(kinds\\)\\)\n    \n    # markdownContentを探す\n    for r in req\\.get\\('response', \\[\\]\\):\n        if r\\.get\\('kind'\\) == 'markdownContent':\n            print\\('\\\\\\\\n=== MARKDOWN CONTENT ==='\\)\n            print\\(str\\(r\\.get\\('content', \\{\\}\\)\\)\\[:300\\]\\)\n\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     }
 }
