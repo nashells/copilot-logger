@@ -1,0 +1,54 @@
+{
+  "name": "copilot-logger",
+  "displayName": "Copilot Logger",
+  "description": "GitHub Copilotのチャット履歴を自動的にMarkdownファイルに記録するVSCode拡張機能",
+  "version": "0.0.1",
+  "publisher": "nashells",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nashells/copilot-logger.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Copilot Logger",
+      "properties": {
+        "copilotLogger.logDirectory": {
+          "type": "string",
+          "default": "~/.copilot-logs",
+          "description": "Copilotチャット履歴を保存するディレクトリのパス"
+        },
+        "copilotLogger.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Copilotログの記録を有効にする"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.x",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "@vscode/vsce": "^2.22.0",
+    "eslint": "^8.54.0",
+    "typescript": "^5.3.0"
+  }
+}
