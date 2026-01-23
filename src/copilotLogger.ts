@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import * as chokidar from 'chokidar';
 
 /** Copilot Chatレスポンスアイテムの構造 */
 interface ChatResponseItem {
@@ -45,26 +46,37 @@ export class CopilotLogger {
     private logDirectory: string;
     private enabled: boolean;
     private processedSessions: Map<string, ProcessedSession> = new Map();
-    private fileWatcher: fs.FSWatcher | null = null;
+    private chokidarWatcher: chokidar.FSWatcher | null = null;
     private watchedPaths: Set<string> = new Set();
 
+    private outputChannel: vscode.OutputChannel;
+
     constructor(private context: vscode.ExtensionContext) {
+        // 出力チャンネルを作成
+        this.outputChannel = vscode.window.createOutputChannel('Copilot Logger');
+        this.outputChannel.appendLine('Copilot Logger initializing...');
+        
         // 設定を読み込む
         const config = vscode.workspace.getConfiguration('copilotLogger');
         this.logDirectory = this.expandPath(config.get<string>('logDirectory', '~/.copilot-logs'));
         this.enabled = config.get<boolean>('enabled', true);
 
         if (this.enabled) {
-            this.initialize();
+            // 初期化を非同期で実行（VS Codeのアクティベーションをブロックしない）
+            setImmediate(() => this.initialize());
         }
     }
 
     private initialize() {
+        this.outputChannel.appendLine('Starting initialization...');
+        
         // ログディレクトリを作成
         this.ensureLogDirectory();
 
         // Copilot Chatの履歴を監視
         this.watchCopilotChat();
+        
+        this.outputChannel.appendLine('Initialization complete.');
     }
 
     private expandPath(filePath: string): string {
@@ -197,62 +209,100 @@ export class CopilotLogger {
     }
 
     /**
-     * 既存のセッションファイルをスキャン
+     * 既存のセッションファイルをスキャン（chatSessionsディレクトリのみ）
      */
     private scanExistingSessions(basePath: string) {
         try {
             if (!fs.existsSync(basePath)) {
+                this.outputChannel.appendLine(`Base path not found: ${basePath}`);
                 return;
             }
 
-            const scanDir = (dirPath: string) => {
-                const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+            this.outputChannel.appendLine(`Scanning for chatSessions in: ${basePath}`);
+            let sessionCount = 0;
+            
+            // workspaceStorageの各ディレクトリをスキャン
+            const workspaceDirs = fs.readdirSync(basePath, { withFileTypes: true });
+            
+            for (const wsDir of workspaceDirs) {
+                if (!wsDir.isDirectory()) continue;
                 
-                for (const entry of entries) {
-                    const fullPath = path.join(dirPath, entry.name);
+                // chatSessionsディレクトリのみを探す
+                const chatSessionsPath = path.join(basePath, wsDir.name, 'chatSessions');
+                
+                if (fs.existsSync(chatSessionsPath)) {
+                    const sessionFiles = fs.readdirSync(chatSessionsPath, { withFileTypes: true });
                     
-                    if (entry.isDirectory()) {
-                        // state.vscdb は SQLite なのでスキップ、JSON ファイルを探す
-                        scanDir(fullPath);
-                    } else if (entry.isFile() && entry.name.endsWith('.json')) {
-                        // チャットセッションらしきJSONファイルを処理
-                        this.processSessionFile(fullPath);
+                    for (const file of sessionFiles) {
+                        if (file.isFile() && file.name.endsWith('.json')) {
+                            const fullPath = path.join(chatSessionsPath, file.name);
+                            this.processSessionFile(fullPath);
+                            sessionCount++;
+                        }
                     }
                 }
-            };
-
-            scanDir(basePath);
+            }
+            
+            this.outputChannel.appendLine(`Found ${sessionCount} session files`);
         } catch (error) {
+            this.outputChannel.appendLine(`Failed to scan existing sessions: ${error}`);
             console.error('Failed to scan existing sessions:', error);
         }
     }
 
     /**
-     * ファイル監視を設定
+     * ファイル監視を設定（chokidar使用）
      */
     private setupFileWatcher(basePath: string) {
         try {
-            // fs.watch を使用（再帰的監視）
-            // 注: WSLでは /mnt/c 配下の監視が不安定な場合がある
-            const watchOptions = { recursive: true };
+            // chokidarを使用してファイル監視
+            // WSL環境では /mnt/c 配下のファイル監視にはポーリングが必要
+            const usePolling = this.isWSL();
             
-            this.fileWatcher = fs.watch(basePath, watchOptions, (eventType, filename) => {
-                if (filename && filename.endsWith('.json')) {
-                    const fullPath = path.join(basePath, filename);
-                    
-                    // デバウンス処理（同じファイルへの連続アクセスを防ぐ）
-                    setTimeout(() => {
-                        if (fs.existsSync(fullPath)) {
-                            this.processSessionFile(fullPath);
-                        }
-                    }, 100);
+            // chatSessionsディレクトリのみを監視
+            const watchPattern = path.join(basePath, '*', 'chatSessions', '*.json');
+            this.outputChannel.appendLine(`Setting up file watcher for: ${watchPattern}`);
+            this.outputChannel.appendLine(`Using polling: ${usePolling}`);
+            
+            this.chokidarWatcher = chokidar.watch(
+                watchPattern,
+                {
+                    persistent: true,
+                    ignoreInitial: true,  // 初回スキャンは別途行うためスキップ
+                    usePolling: usePolling,
+                    interval: usePolling ? 1000 : 100,  // WSLでは1秒間隔でポーリング
+                    binaryInterval: usePolling ? 2000 : 300,
+                    awaitWriteFinish: {
+                        stabilityThreshold: 500,
+                        pollInterval: 100
+                    },
+                    ignorePermissionErrors: true
                 }
+            );
+
+            this.chokidarWatcher.on('change', (filePath: string) => {
+                this.outputChannel.appendLine(`File changed: ${filePath}`);
+                this.processSessionFile(filePath);
             });
 
-            console.log('File watcher setup complete');
-            vscode.window.showInformationMessage(
-                `Copilot Logger: ${this.isWSL() ? 'WSL' : 'Linux'}環境でチャット履歴の監視を開始しました`
-            );
+            this.chokidarWatcher.on('add', (filePath: string) => {
+                this.outputChannel.appendLine(`File added: ${filePath}`);
+                this.processSessionFile(filePath);
+            });
+
+            this.chokidarWatcher.on('error', (error: Error) => {
+                this.outputChannel.appendLine(`Watcher error: ${error.message}`);
+                console.error('Chokidar watcher error:', error);
+            });
+
+            this.chokidarWatcher.on('ready', () => {
+                this.outputChannel.appendLine('File watcher ready!');
+                const watchMode = usePolling ? 'ポーリングモード' : 'イベントモード';
+                vscode.window.showInformationMessage(
+                    `Copilot Logger: ${this.isWSL() ? 'WSL' : 'Linux'}環境でチャット履歴の監視を開始しました（${watchMode}）`
+                );
+            });
+
         } catch (error) {
             console.error('Failed to setup file watcher:', error);
             vscode.window.showErrorMessage(
@@ -444,9 +494,9 @@ export class CopilotLogger {
 
     public dispose() {
         // ファイル監視を停止
-        if (this.fileWatcher) {
-            this.fileWatcher.close();
-            this.fileWatcher = null;
+        if (this.chokidarWatcher) {
+            this.chokidarWatcher.close();
+            this.chokidarWatcher = null;
         }
         
         this.disposables.forEach(d => d.dispose());
