@@ -14,8 +14,8 @@ GitHub Copilotのチャット履歴を自動的にMarkdownファイルに記録�
 
 ## 対応環境
 
-- **Linux (ネイティブ)**: `~/.config/Code/User/workspaceStorage` を監視
 - **WSL**: `/mnt/c/Users/{username}/AppData/Roaming/Code/User/workspaceStorage` を自動検出
+- **Linux (ネイティブ)**: `~/.config/Code/User/workspaceStorage` を監視（未テスト）
 
 ## インストール方法
 
@@ -123,4 +123,3 @@ MIT
 
 - この拡張機能はローカルテスト用です
 - Copilotのチャット履歴には機密情報が含まれる可能性があるため、ログファイルの管理には注意してください
-- 現在のバージョンはVSCodeのCopilot Chat APIの利用可能性に依存します
