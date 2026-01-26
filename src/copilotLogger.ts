@@ -98,6 +98,39 @@ export class CopilotLogger {
     }
 
     /**
+     * セッションファイルのパスから元のワークスペース名を取得
+     */
+    private getWorkspaceNameFromSessionPath(sessionFilePath: string): string {
+        try {
+            // パス構造: .../workspaceStorage/{hash}/chatSessions/{session}.json
+            // workspace.jsonは: .../workspaceStorage/{hash}/workspace.json
+            const chatSessionsDir = path.dirname(sessionFilePath);
+            const workspaceHashDir = path.dirname(chatSessionsDir);
+            const workspaceJsonPath = path.join(workspaceHashDir, 'workspace.json');
+            
+            if (fs.existsSync(workspaceJsonPath)) {
+                const content = fs.readFileSync(workspaceJsonPath, 'utf8');
+                const workspaceInfo = JSON.parse(content);
+                
+                if (workspaceInfo.folder) {
+                    // URLデコードしてパスの最後の部分を取得
+                    // 例: "vscode-remote://wsl%2Bubuntu/home/sky/copilot-logger" -> "copilot-logger"
+                    const decodedFolder = decodeURIComponent(workspaceInfo.folder);
+                    const folderName = path.basename(decodedFolder);
+                    if (folderName) {
+                        return folderName;
+                    }
+                }
+            }
+        } catch (error) {
+            this.outputChannel.appendLine(`Failed to get workspace name from session path: ${error}`);
+        }
+        
+        // フォールバック: 現在のワークスペース名を使用
+        return this.getCurrentWorkspaceName();
+    }
+
+    /**
      * WSL環境かどうかを判定
      */
     private isWSL(): boolean {
@@ -345,7 +378,9 @@ export class CopilotLogger {
             const newRequests = session.requests.slice(startIndex);
 
             if (newRequests.length > 0) {
-                this.logNewRequests(newRequests, session);
+                // セッションファイルのパスから元のワークスペース名を取得
+                const workspaceName = this.getWorkspaceNameFromSessionPath(filePath);
+                this.logNewRequests(newRequests, session, workspaceName);
                 
                 // 処理状態を更新
                 this.processedSessions.set(sessionKey, {
@@ -362,7 +397,7 @@ export class CopilotLogger {
     /**
      * 新しいリクエストをログに記録
      */
-    private logNewRequests(requests: ChatRequest[], session: ChatSession) {
+    private logNewRequests(requests: ChatRequest[], session: ChatSession, workspaceName: string) {
         for (const request of requests) {
             // ユーザーメッセージ
             const userMessage = request.message?.text;
@@ -372,7 +407,8 @@ export class CopilotLogger {
                     content: userMessage,
                     timestamp: new Date(request.timestamp || Date.now()),
                     modelId: request.modelId,
-                    agent: request.agent?.name
+                    agent: request.agent?.name,
+                    workspaceName: workspaceName
                 });
             }
 
@@ -405,7 +441,8 @@ export class CopilotLogger {
                             content: combinedContent,
                             timestamp: new Date(request.timestamp || Date.now()),
                             modelId: request.modelId,
-                            agent: request.agent?.name
+                            agent: request.agent?.name,
+                            workspaceName: workspaceName
                         });
                     }
                 }
@@ -422,13 +459,14 @@ export class CopilotLogger {
         timestamp: Date;
         modelId?: string;
         agent?: string;
+        workspaceName: string;
     }) {
         if (!this.enabled) {
             return;
         }
 
         try {
-            const logFile = this.getLogFilePath();
+            const logFile = this.getLogFilePath(message.timestamp, message.workspaceName);
             const formattedMessage = this.formatMessage(message);
             
             // ファイルに追記
@@ -439,14 +477,13 @@ export class CopilotLogger {
         }
     }
 
-    private getLogFilePath(): string {
-        const workspaceName = this.getWorkspaceName();
-        const dateStr = this.getDateString();
+    private getLogFilePath(timestamp: Date, workspaceName: string): string {
+        const dateStr = this.getDateString(timestamp);
         const fileName = `${workspaceName}-${dateStr}.md`;
         return path.join(this.logDirectory, fileName);
     }
 
-    private getWorkspaceName(): string {
+    private getCurrentWorkspaceName(): string {
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (workspaceFolders && workspaceFolders.length > 0) {
             return path.basename(workspaceFolders[0].uri.fsPath);
@@ -454,11 +491,10 @@ export class CopilotLogger {
         return 'untitled';
     }
 
-    private getDateString(): string {
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
+    private getDateString(date: Date): string {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
         return `${year}${month}${day}`;
     }
 
